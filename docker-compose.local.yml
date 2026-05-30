@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Fitssort Membership — LOCAL Android build (debug APK)
+#
+# Build a debug APK in a clean container and copy it to ./output:
+#
+#   docker compose -f docker-compose.local.yml build
+#   docker compose -f docker-compose.local.yml up
+#
+# Result: ./output/fitssort-membership-debug.apk
+#
+# Install on a connected device from the host:
+#   adb install -r output/fitssort-membership-debug.apk
+#   adb reverse tcp:8021 tcp:8021   # so the app reaches the local backend
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  android-build:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: fitssort-membership-android-local:latest
+    container_name: fitssort-membership-android-local
+    env_file: .env.local
+    volumes:
+      - ./output:/output
+    restart: "no"
