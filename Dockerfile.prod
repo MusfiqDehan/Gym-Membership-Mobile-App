@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────────────────────
+# Fitssort Membership — Android build image (PRODUCTION / release artifacts)
+#
+# Produces a release APK and an AAB (Play Store bundle) in a clean, reproducible
+# toolchain. Designed to run on the production VPS / CI:
+#
+#   docker compose -f docker-compose.prod.yml build   # compile release artifacts
+#   docker compose -f docker-compose.prod.yml up       # copy them to ./output
+#
+# NOTE on signing: android/build.gradle currently signs the release build with
+# the bundled debug keystore. For Play Store distribution, replace it with your
+# own upload keystore and wire the credentials in via build args / env.
+#
+# SDK component versions are kept in sync with android/build.gradle.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM eclipse-temurin:17-jdk-jammy AS build
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=/opt/android-sdk
+ENV NODE_MAJOR=22
+
+# Android SDK components — MUST match android/build.gradle (ext block).
+ENV ANDROID_PLATFORM=android-36
+ENV ANDROID_BUILD_TOOLS=36.0.0
+ENV ANDROID_NDK=27.1.12297006
+ENV ANDROID_CMAKE=3.22.1
+ENV CMDLINE_TOOLS_VERSION=11076708
+
+# 1) System deps + Node.js (for the Metro JS bundle step).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      curl unzip git ca-certificates \
+ && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
+
+# 2) Android command-line tools + required SDK packages.
+RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
+ && curl -fsSL -o /tmp/cmdtools.zip \
+      https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip \
+ && unzip -q /tmp/cmdtools.zip -d ${ANDROID_SDK_ROOT}/cmdline-tools \
+ && mv ${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools ${ANDROID_SDK_ROOT}/cmdline-tools/latest \
+ && rm /tmp/cmdtools.zip
+ENV PATH=${PATH}:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools
+
+RUN yes | sdkmanager --licenses > /dev/null \
+ && sdkmanager --install \
+      "platform-tools" \
+      "platforms;${ANDROID_PLATFORM}" \
+      "build-tools;${ANDROID_BUILD_TOOLS}" \
+      "ndk;${ANDROID_NDK}" \
+      "cmake;${ANDROID_CMAKE}" > /dev/null
+
+WORKDIR /app
+
+# 3) Install JS dependencies first for better layer caching.
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
+
+# 4) Copy the rest of the project.
+COPY . .
+
+# 5) Bake the PROD API config: react-native-config reads `.env.production`
+#    for the release variant.
+RUN cp .env.prod .env.production
+
+# 6) Build the release APK and AAB.
+RUN chmod +x android/gradlew \
+ && cd android \
+ && ./gradlew --no-daemon clean assembleRelease bundleRelease
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Thin export stage — carries the release artifacts and copies them to ./output.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM alpine:3.20 AS export
+COPY --from=build /app/android/app/build/outputs/apk/release/app-release.apk \
+                  /artifact/fitssort-membership-release.apk
+COPY --from=build /app/android/app/build/outputs/bundle/release/app-release.aab \
+                  /artifact/fitssort-membership-release.aab
+CMD ["sh", "-c", "mkdir -p /output && cp /artifact/fitssort-membership-release.apk /artifact/fitssort-membership-release.aab /output/ && echo 'Release artifacts copied to ./output:' && ls -lh /output"]
