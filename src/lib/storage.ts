@@ -66,6 +66,6 @@ export async function setSchema(schema: string): Promise<void> {
 }
 
 export async function clearAuth(): Promise<void> {
-  await AsyncStorage.multiRemove([ACCESS_KEY, REFRESH_KEY, USER_KEY, SCHEMA_KEY]);
+  await AsyncStorage.removeMany([ACCESS_KEY, REFRESH_KEY, USER_KEY, SCHEMA_KEY]);
   // Intentionally keep the subdomain so the login screen can pre-fill it.
 }
