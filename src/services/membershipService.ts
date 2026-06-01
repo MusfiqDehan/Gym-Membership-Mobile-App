@@ -34,6 +34,8 @@ export type MyMember = {
   payment_method?: string;
   payment_status?: string;
   is_active?: boolean;
+  branch?: number | null;
+  branch_name?: string | null;
 };
 
 export type MySubscription = {
