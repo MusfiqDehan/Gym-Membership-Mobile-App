@@ -102,6 +102,11 @@ async function refreshAccessToken(): Promise<string | null> {
         return null;
       }
       const data = (await res.json()) as { access: string };
+      // If logout happened while refreshing, do not re-persist a fresh access token.
+      const currentRefresh = await getRefreshToken();
+      if (!currentRefresh || currentRefresh !== refresh) {
+        return null;
+      }
       await setTokens(data.access);
       return data.access;
     } catch {
@@ -162,16 +167,17 @@ export async function request<T = unknown>(
 ): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
   const headers = await buildHeaders(options);
+  const requestBody: RequestInit['body'] =
+    options.body === undefined
+      ? undefined
+      : options.body instanceof FormData
+        ? options.body
+        : JSON.stringify(options.body);
 
   const init: RequestInit = {
     method: options.method ?? 'GET',
     headers,
-    body:
-      options.body === undefined
-        ? undefined
-        : options.body instanceof FormData
-          ? (options.body as unknown as BodyInit)
-          : JSON.stringify(options.body),
+    body: requestBody,
   };
 
   let res = await fetch(url, init);
