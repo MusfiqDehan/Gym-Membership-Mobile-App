@@ -97,9 +97,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    await logoutRequest();
-    setUser(null);
-    setCurrentUser(null);
+    try {
+      await logoutRequest();
+    } finally {
+      // Always switch UI to logged-out state, even if storage cleanup fails.
+      setUser(null);
+      setCurrentUser(null);
+    }
   }, []);
 
   const value = useMemo<AuthState>(
