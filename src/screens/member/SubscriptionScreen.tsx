@@ -6,6 +6,7 @@ import { Screen } from '../../components/ui/Screen';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { BranchShiftCard } from '../../components/member/BranchShiftCard';
 import {
   getMySubscription,
   type MySubscription,
@@ -147,6 +148,11 @@ export function SubscriptionScreen() {
               ) : null}
             </View>
           </Card>
+
+          <BranchShiftCard
+            memberId={member.id}
+            currentBranchName={member.branch_name}
+          />
 
           <Text className="mb-3 text-sm font-semibold text-white/80">
             Payment history
