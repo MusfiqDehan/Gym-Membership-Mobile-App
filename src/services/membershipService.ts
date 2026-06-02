@@ -58,6 +58,7 @@ export type RegisterPayload = {
   email: string;
   member_package_id: number;
   gatewaySlug?: string;
+  branch_id?: number | null;
 };
 
 /** Public list of purchasable packages for the tenant (no auth required). */
@@ -82,6 +83,7 @@ export async function registerAndCheckout(
       membership_type: 'package',
       start_checkout: true,
       gateway_slug: payload.gatewaySlug ?? 'sslcommerz',
+      ...(payload.branch_id != null ? { branch_id: payload.branch_id } : {}),
     },
     { skipAuth: true },
   );
