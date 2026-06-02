@@ -17,6 +17,7 @@ import {
   registerAndCheckout,
   type MemberPackage,
 } from '../../services/membershipService';
+import { getPublicBranches, type BranchMinimal } from '../../services/branchService';
 import { setSubdomain as persistSubdomain } from '../../lib/storage';
 import { ApiError } from '../../lib/apiClient';
 import { colors } from '../../theme/colors';
@@ -36,6 +37,9 @@ export function RegisterScreen({ navigation }: Props) {
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [packagesLoaded, setPackagesLoaded] = useState(false);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
+
+  const [branches, setBranches] = useState<BranchMinimal[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -58,6 +62,16 @@ export function RegisterScreen({ navigation }: Props) {
       setPackagesLoaded(true);
       if (list.length === 0) {
         setError('No packages are available for this gym.');
+      }
+      // Load branches (best-effort; single-branch gyms won't show a picker).
+      try {
+        const branchList = await getPublicBranches();
+        setBranches(branchList);
+        if (branchList.length > 0) {
+          setSelectedBranchId(branchList[0].id);
+        }
+      } catch {
+        // Branch list is optional; ignore errors.
       }
     } catch (e) {
       const message =
@@ -88,6 +102,7 @@ export function RegisterScreen({ navigation }: Props) {
         phone_number: phone,
         email,
         member_package_id: selectedPackageId,
+        branch_id: selectedBranchId,
       });
       if (res.gateway_url) {
         navigation.navigate('PaymentWebView', {
@@ -187,6 +202,42 @@ export function RegisterScreen({ navigation }: Props) {
 
             {selectedPackageId ? (
               <View className="gap-4">
+                {/* Branch picker — shown only when gym has multiple branches */}
+                {branches.length > 1 ? (
+                  <View className="gap-2">
+                    <Text className="text-sm font-medium text-white/80">
+                      Choose your branch
+                    </Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {branches.map(branch => {
+                        const selected = selectedBranchId === branch.id;
+                        return (
+                          <Pressable
+                            key={branch.id}
+                            onPress={() => setSelectedBranchId(branch.id)}
+                            className={`rounded-xl border px-3 py-2 ${
+                              selected
+                                ? 'border-brand-400 bg-brand-400/10'
+                                : 'border-white/15 bg-white/5'
+                            }`}
+                          >
+                            <Text
+                              className={`text-sm font-semibold ${
+                                selected ? 'text-brand-400' : 'text-white/60'
+                              }`}
+                            >
+                              {branch.name}
+                            </Text>
+                            {branch.city ? (
+                              <Text className="text-xs text-white/40">{branch.city}</Text>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+
                 <Input
                   label="Full name"
                   placeholder="Jane Doe"
