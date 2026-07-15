@@ -18,6 +18,7 @@ import {
   getSubdomain,
   type StoredUser,
 } from '../lib/storage';
+import { scheduleProactiveRefresh } from '../lib/tokenRefresh';
 
 type AuthState = {
   initializing: boolean;
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Validate the session and hydrate fresh permissions.
           try {
             await refreshUser();
+            scheduleProactiveRefresh();
           } catch {
             // Token invalid/expired; treat as logged out.
             await logoutRequest();
