@@ -15,16 +15,38 @@ export function formatDate(value?: string | null): string {
   });
 }
 
+function parseTimeParts(value: string): { hour: number; minute: number } | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  return { hour, minute };
+}
+
+/** Format backend HH:mm or HH:mm:ss values as 12-hour clock, e.g. "6:30 PM". */
 export function formatTime(value?: string | null): string {
   if (!value) {
     return '';
   }
-  // Backend times come as HH:MM:SS; trim to HH:MM.
-  const match = /^(\d{1,2}):(\d{2})/.exec(value);
-  if (match) {
-    return `${match[1].padStart(2, '0')}:${match[2]}`;
+
+  const parsed = parseTimeParts(value);
+  if (!parsed) {
+    return value;
   }
-  return value;
+
+  const date = new Date(2000, 0, 1, parsed.hour, parsed.minute);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 export function timeRange(start?: string | null, end?: string | null): string {
