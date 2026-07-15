@@ -1,11 +1,6 @@
 import { API_BASE_URL } from '../config/env';
-import {
-  clearAuth,
-  getAccessToken,
-  getRefreshToken,
-  getSubdomain,
-  setTokens,
-} from './storage';
+import { getAccessToken } from './storage';
+import { refreshAccessToken } from './tokenRefresh';
 
 export class ApiError extends Error {
   status: number;
@@ -75,50 +70,6 @@ export type RequestOptions = {
   subdomain?: string;
 };
 
-let refreshPromise: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  const refresh = await getRefreshToken();
-  if (!refresh) {
-    return null;
-  }
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-  refreshPromise = (async () => {
-    try {
-      const subdomain = await getSubdomain();
-      const res = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...(subdomain ? { 'X-Tenant-Subdomain': subdomain } : {}),
-        },
-        body: JSON.stringify({ refresh }),
-      });
-      if (!res.ok) {
-        await clearAuth();
-        return null;
-      }
-      const data = (await res.json()) as { access: string };
-      // If logout happened while refreshing, do not re-persist a fresh access token.
-      const currentRefresh = await getRefreshToken();
-      if (!currentRefresh || currentRefresh !== refresh) {
-        return null;
-      }
-      await setTokens(data.access);
-      return data.access;
-    } catch {
-      await clearAuth();
-      return null;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-  return refreshPromise;
-}
-
 async function buildHeaders(options: RequestOptions): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -129,7 +80,7 @@ async function buildHeaders(options: RequestOptions): Promise<Record<string, str
     headers['Content-Type'] = 'application/json';
   }
 
-  // Tenant routing hint for the hostless mobile client.
+  const { getSubdomain } = await import('./storage');
   const subdomain = options.subdomain ?? (await getSubdomain());
   if (subdomain) {
     headers['X-Tenant-Subdomain'] = subdomain;
@@ -182,7 +133,6 @@ export async function request<T = unknown>(
 
   let res = await fetch(url, init);
 
-  // Silent refresh on 401 once (skipped for auth/refresh endpoints).
   if (res.status === 401 && !options.skipAuth && !options.skipRefresh) {
     const newAccess = await refreshAccessToken();
     if (newAccess) {
