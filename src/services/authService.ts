@@ -1,12 +1,18 @@
 import { api } from '../lib/apiClient';
 import {
   clearAuth,
+  getAccessToken,
+  getRefreshToken,
   setSchema,
   setStoredUser,
   setSubdomain,
   setTokens,
   type StoredUser,
 } from '../lib/storage';
+import {
+  clearRefreshSchedule,
+  scheduleProactiveRefresh,
+} from '../lib/tokenRefresh';
 
 export type TenantInfo = {
   id: number;
@@ -42,7 +48,6 @@ export async function login(
   subdomain: string,
 ): Promise<LoginResponse> {
   const normalizedSubdomain = subdomain.trim().toLowerCase();
-  // Persist the subdomain first so the request carries the tenant hint header.
   await setSubdomain(normalizedSubdomain);
 
   const data = await api.post<LoginResponse>(
@@ -55,6 +60,7 @@ export async function login(
   if (data.tenant?.schema_name) {
     await setSchema(data.tenant.schema_name);
   }
+  scheduleProactiveRefresh();
   return data;
 }
 
@@ -73,6 +79,24 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
 }
 
 export async function logout(): Promise<void> {
-  await clearAuth();
-  await setStoredUser(null);
+  const access = await getAccessToken();
+  const refresh = await getRefreshToken();
+  clearRefreshSchedule();
+  try {
+    if (refresh) {
+      await api.post(
+        '/identity/logout/',
+        { refresh },
+        {
+          skipRefresh: true,
+          headers: access ? { Authorization: `Bearer ${access}` } : undefined,
+        },
+      );
+    }
+  } catch {
+    // Local logout still proceeds if the network call fails.
+  } finally {
+    await clearAuth();
+    await setStoredUser(null);
+  }
 }
