@@ -1,0 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Keep the Docker build context small & reproducible.
+# node_modules and native build outputs are regenerated inside the image.
+# ─────────────────────────────────────────────────────────────────────────────
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Android build outputs / caches
+android/.gradle
+android/app/build
+android/build
+android/.kotlin
+android/app/.cxx
+**/build/intermediates
+**/build/outputs
+
+# iOS (not built in these images)
+ios/Pods
+ios/build
+ios/DerivedData
+
+# Build artifacts emitted by these images
+output
+
+# Version control & editor noise
+.git
+.gitignore
+.idea
+.vscode
+*.log
+.DS_Store
